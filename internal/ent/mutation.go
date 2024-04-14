@@ -10,8 +10,10 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Ponprasath75/QkartGoBackend/internal/ent/cart"
 	"github.com/Ponprasath75/QkartGoBackend/internal/ent/predicate"
 	"github.com/Ponprasath75/QkartGoBackend/internal/ent/product"
+	"github.com/Ponprasath75/QkartGoBackend/internal/ent/schema"
 	"github.com/Ponprasath75/QkartGoBackend/internal/ent/user"
 )
 
@@ -24,9 +26,406 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeCart    = "Cart"
 	TypeProduct = "Product"
 	TypeUser    = "User"
 )
+
+// CartMutation represents an operation that mutates the Cart nodes in the graph.
+type CartMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	username      *string
+	cart          *[]schema.CartItem
+	appendcart    []schema.CartItem
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*Cart, error)
+	predicates    []predicate.Cart
+}
+
+var _ ent.Mutation = (*CartMutation)(nil)
+
+// cartOption allows management of the mutation configuration using functional options.
+type cartOption func(*CartMutation)
+
+// newCartMutation creates new mutation for the Cart entity.
+func newCartMutation(c config, op Op, opts ...cartOption) *CartMutation {
+	m := &CartMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCart,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCartID sets the ID field of the mutation.
+func withCartID(id int) cartOption {
+	return func(m *CartMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Cart
+		)
+		m.oldValue = func(ctx context.Context) (*Cart, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Cart.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCart sets the old Cart of the mutation.
+func withCart(node *Cart) cartOption {
+	return func(m *CartMutation) {
+		m.oldValue = func(context.Context) (*Cart, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CartMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CartMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CartMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CartMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Cart.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUsername sets the "username" field.
+func (m *CartMutation) SetUsername(s string) {
+	m.username = &s
+}
+
+// Username returns the value of the "username" field in the mutation.
+func (m *CartMutation) Username() (r string, exists bool) {
+	v := m.username
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsername returns the old "username" field's value of the Cart entity.
+// If the Cart object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CartMutation) OldUsername(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsername is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsername requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsername: %w", err)
+	}
+	return oldValue.Username, nil
+}
+
+// ResetUsername resets all changes to the "username" field.
+func (m *CartMutation) ResetUsername() {
+	m.username = nil
+}
+
+// SetCart sets the "cart" field.
+func (m *CartMutation) SetCart(si []schema.CartItem) {
+	m.cart = &si
+	m.appendcart = nil
+}
+
+// Cart returns the value of the "cart" field in the mutation.
+func (m *CartMutation) Cart() (r []schema.CartItem, exists bool) {
+	v := m.cart
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCart returns the old "cart" field's value of the Cart entity.
+// If the Cart object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CartMutation) OldCart(ctx context.Context) (v []schema.CartItem, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCart: %w", err)
+	}
+	return oldValue.Cart, nil
+}
+
+// AppendCart adds si to the "cart" field.
+func (m *CartMutation) AppendCart(si []schema.CartItem) {
+	m.appendcart = append(m.appendcart, si...)
+}
+
+// AppendedCart returns the list of values that were appended to the "cart" field in this mutation.
+func (m *CartMutation) AppendedCart() ([]schema.CartItem, bool) {
+	if len(m.appendcart) == 0 {
+		return nil, false
+	}
+	return m.appendcart, true
+}
+
+// ResetCart resets all changes to the "cart" field.
+func (m *CartMutation) ResetCart() {
+	m.cart = nil
+	m.appendcart = nil
+}
+
+// Where appends a list predicates to the CartMutation builder.
+func (m *CartMutation) Where(ps ...predicate.Cart) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CartMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CartMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Cart, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CartMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CartMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Cart).
+func (m *CartMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CartMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.username != nil {
+		fields = append(fields, cart.FieldUsername)
+	}
+	if m.cart != nil {
+		fields = append(fields, cart.FieldCart)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CartMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cart.FieldUsername:
+		return m.Username()
+	case cart.FieldCart:
+		return m.Cart()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CartMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cart.FieldUsername:
+		return m.OldUsername(ctx)
+	case cart.FieldCart:
+		return m.OldCart(ctx)
+	}
+	return nil, fmt.Errorf("unknown Cart field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CartMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cart.FieldUsername:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsername(v)
+		return nil
+	case cart.FieldCart:
+		v, ok := value.([]schema.CartItem)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCart(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Cart field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CartMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CartMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CartMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Cart numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CartMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CartMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CartMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Cart nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CartMutation) ResetField(name string) error {
+	switch name {
+	case cart.FieldUsername:
+		m.ResetUsername()
+		return nil
+	case cart.FieldCart:
+		m.ResetCart()
+		return nil
+	}
+	return fmt.Errorf("unknown Cart field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CartMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CartMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CartMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CartMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CartMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CartMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CartMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Cart unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CartMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Cart edge %s", name)
+}
 
 // ProductMutation represents an operation that mutates the Product nodes in the graph.
 type ProductMutation struct {

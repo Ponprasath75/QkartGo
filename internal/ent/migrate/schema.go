@@ -8,6 +8,18 @@ import (
 )
 
 var (
+	// CartsColumns holds the columns for the "carts" table.
+	CartsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "username", Type: field.TypeString, Unique: true},
+		{Name: "cart", Type: field.TypeJSON},
+	}
+	// CartsTable holds the schema information for the "carts" table.
+	CartsTable = &schema.Table{
+		Name:       "carts",
+		Columns:    CartsColumns,
+		PrimaryKey: []*schema.Column{CartsColumns[0]},
+	}
 	// ProductsColumns holds the columns for the "products" table.
 	ProductsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -39,6 +51,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CartsTable,
 		ProductsTable,
 		UsersTable,
 	}
